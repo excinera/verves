@@ -1,7 +1,5 @@
 # verves
-A software to scrape and index forum threads.
-
-This is a Python script that scrapes web forums.
+A Python software to scrape and index forum threads.
 
 It reads the URLs for top-level forum indices from sites.txt, and gets all the subforums from that page.
 Then it goes through the subforums to make a list of threads.
