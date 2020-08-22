@@ -39,7 +39,6 @@ configFilePath = Path(sys.path[0] + "/" + configname + "/" + configfilename)
 # os.mkdir(datapath) 
 # This is the pleb way. Only villains go for this.
 
-
 if verbose:
 	print(datapath)
 	print("Attempting to execute in:")
@@ -51,9 +50,6 @@ timber.mkdir(exist_ok = True)
 config.mkdir(exist_ok = True)
 # Make sure that all the directories exist.
 os.chdir(indices)
-
-
-
 
 # there should be a thing here to parse in the list of URLs from a text file incl. auth details etc
 
