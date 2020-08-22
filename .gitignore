@@ -1,0 +1,9 @@
+# exclude the cfg and data directories, as well as specific config files for redundancy
+# also exclude my chickenscratch notes files
+# -x. 2020 08 22
+*.log
+sites.txt
+notes.txt
+cfg/*
+data/*
+sandbox/*
