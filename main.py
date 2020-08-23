@@ -10,9 +10,13 @@ import requests
 from html.parser import HTMLParser
 # Required to use BeautifulSoup.
 from bs4 import BeautifulSoup
-# The real meat and potatoes of the HTML parsing.
+# The real meat and potatoes of the HTML parsing. + "/" + __file__
 # Documentation for this is recommended reading to get how the program works.
 from datetime import datetime
+
+
+import psycopg2
+# I am thinking of just putting the SQL stuff in its own file, I dunno.
 
 dataname = "data"
 timbername = "timber"
@@ -24,26 +28,48 @@ actuallyScrapeIndex = False
 actuallyScrapeSubforums = False
 # These ought to be set in config files, or by flags.
 
-datapath = Path(sys.path[0] + "/" + dataname)
+
+# I was using sys.path[0] to get the current directory
+# but when I run it as sudo -u postgres it doesn't work
+# However, os.getcwd() seems to work.
+# -x 2020 08 22
+
+datapath = Path(os.getcwd() + "/" + dataname)
 # This is the directory where all program-generated data should live.
 # Patrick Robotham told me to do this with Path on 2020 08 20.
-timber = Path(sys.path[0] + "/" + dataname + "/" + timbername)
+timber = Path(os.getcwd() + "/" + dataname + "/" + timbername)
 # Intermediate
 #  (i.e. forum indices that list individual threads)
 # Brighty is sad that I didn't call this some shit like /data/html/pages/ingest/toProcess/
-indices = Path(sys.path[0] + "/" + dataname + "/" + indicesname)
+indices = Path(os.getcwd() + "/" + dataname + "/" + indicesname)
 # Top-level forum indexes (i.e. the main page of the website).
-config = Path(sys.path[0] + "/" + configname)
-configFilePath = Path(sys.path[0] + "/" + configname + "/" + configfilename)
-
-# os.mkdir(datapath) 
-# This is the pleb way. Only villains go for this.
+config = Path(os.getcwd() + "/" + configname)
+configFilePath = Path(os.getcwd() + "/" + configname + "/" + configfilename)
 
 if verbose:
-	print(datapath)
+	print("File name: " + __file__)
+	print("Current path: " + os.getcwd() + "/" + __file__)
+	print("Data path: " + str(datapath))
 	print("Attempting to execute in:")
 	print(timber)
 	print("Config file path: " + str(configFilePath))
+	print("Running as user: " + os.getlogin())
+
+
+# conn = psycopg2.connect("dbname=threads user=postgres password=muensterenergy")
+conn = psycopg2.connect(dbname="threads", user="postgres", password="muensterenergy")
+cur = conn.cursor()
+name_Database   = "threads";
+# Create table statement
+# Create a table in PostgreSQL database
+
+cur.execute("CREATE TABLE IF NOT EXISTS forums (forumid integer PRIMARY KEY, title varchar, parent integer);")
+cur.execute("CREATE TABLE IF NOT EXISTS threads (threadid integer PRIMARY KEY, title varchar, lastpost date, lastposterid integer, authorid integer, lastpostername varchar, authorname varchar, sticky boolean, announcement boolean, read boolean, posticon varchar, replycount integer, viewcount integer, rating varchar);")
+
+if verbose:
+	print("At least the database stuff worked")
+# os.mkdir(datapath) 
+# This is the pleb way. Only villains go for this.
 
 datapath.mkdir(exist_ok = True)
 timber.mkdir(exist_ok = True)
@@ -232,8 +258,8 @@ for eachUrl in baseForumUrls:
 	
 	# normal stickies don't have a special tr class. 
 	
-	
-	
+	# https://forums.somethingawful.com/showthread.php?threadid=
+	# https://forums.somethingawful.com/showthread.php?goto=lastpost&threadid=
 	
 	
 	htmlFile.close()
