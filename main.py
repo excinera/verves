@@ -154,8 +154,7 @@ for eachUrl in baseForumUrls:
 	indexu2.close()
 	
 	print(allForums)
-	
-	
+
 	# okay now we're going to take this huge list of urls and scrape all the subforums WOOHOO
 	
 	os.chdir(timber)
@@ -172,10 +171,6 @@ for eachUrl in baseForumUrls:
 			indexu = open(filenameForHtml, 'wb')
 			indexu.write(r.content)
 			indexu.close()
-	
-	
-	
-	
 	
 	listOfHtmls = sorted(timber.glob('*.html'))
 	if verbose:
@@ -258,35 +253,7 @@ for eachUrl in baseForumUrls:
 	
 	# normal stickies don't have a special tr class. 
 	
-	# https://forums.somethingawful.com/showthread.php?threadid=
-	# https://forums.somethingawful.com/showthread.php?goto=lastpost&threadid=
-	
 	
 	htmlFile.close()
 # End of the loop that iterates over all top-level forums.
 print("All done")
-
-
-
-
-# mega fail below this line LOL
-# - x. 2020 08 20
-
-# class MyHTMLParser(HTMLParser):
-# 	def handle_starttag(self, tag, attrs):
-# 		if tag == "a":
-# 			#print("Encountered a start tag:", tag, " / ", attrs)
-# 			if (len(attrs) > 1) and (attrs[1][0] == 'class'):
-# 				isaClass = True
-# 			else:
-# 				isaClass = False
-# 
-# 	def handle_endtag(self, tag):
-# 		if tag == "a":
-# 			print("Encountered an end tag :", tag)
-# 
-# 	def handle_data(self, data):
-# 		if isaClass == True:
-# 			print("Encountered some data  :", data)
-# 
-# parser = MyHTMLParser()
