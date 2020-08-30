@@ -25,7 +25,9 @@ configname = "cfg"
 configfilename = "sites.txt"
 verbose = True
 actuallyScrapeIndex = False
+actuallyParseIndexTreeToDb = True
 actuallyScrapeSubforums = False
+actuallyParseThreadsToDb = True
 # These ought to be set in config files, or by flags.
 
 
@@ -62,19 +64,40 @@ cur = conn.cursor()
 name_Database   = "threads";
 # Create table statement
 # Create a table in PostgreSQL database
+cur.execute("CREATE TABLE IF NOT EXISTS forums (forumid integer PRIMARY KEY, title varchar, parent integer, website integer);")
+cur.execute("CREATE TABLE IF NOT EXISTS threads (threadid integer PRIMARY KEY, title varchar, lastpost timestamp, lastposterid integer, authorid integer, lastpostername varchar, authorname varchar, sticky boolean, announcement boolean, read boolean, posticon varchar, replycount integer, viewcount integer, rating varchar, forumid integer, firstpost date, firstpostid integer);")
+conn.commit() 
+# Make database change persistent.
 
-cur.execute("CREATE TABLE IF NOT EXISTS forums (forumid integer PRIMARY KEY, title varchar, parent integer);")
-cur.execute("CREATE TABLE IF NOT EXISTS threads (threadid integer PRIMARY KEY, title varchar, lastpost date, lastposterid integer, authorid integer, lastpostername varchar, authorname varchar, sticky boolean, announcement boolean, read boolean, posticon varchar, replycount integer, viewcount integer, rating varchar);")
+def insertIntoThreads(threadid, title, lastpost, lastposterid, authorid, lastpostername, authorname, sticky, announcement, read, posticon, replycount, viewcount, rating, forumid):
+	sql = "INSERT INTO threads (threadid, title, lastpost, lastposterid, authorid, lastpostername, authorname, sticky, announcement, read, posticon, replycount, viewcount, rating, forumid) VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})".format(
+		threadid,
+		title,
+		lastpost,
+		lastposterid,
+		authorid,
+		lastpostername,
+		authorname, 
+		sticky,
+		announcement,
+		read,
+		posticon,
+		replycount,
+		viewcount,
+		rating,
+		forumid)
+	cur.execute(sql)
 
 if verbose:
 	print("At least the database stuff worked")
 # os.mkdir(datapath) 
 # This is the pleb way. Only villains go for this.
 
-datapath.mkdir(exist_ok = True)
-timber.mkdir(exist_ok = True)
-config.mkdir(exist_ok = True)
+datapath.mkdir(mode=0o777, exist_ok = True)
+timber.mkdir(mode=0o777, exist_ok = True)
+config.mkdir(mode=0o777, exist_ok = True)
 # Make sure that all the directories exist.
+# the mode=0o777 comes from internet poster "farsicalrelease"
 os.chdir(indices)
 
 # there should be a thing here to parse in the list of URLs from a text file incl. auth details etc
@@ -167,19 +190,20 @@ for eachUrl in baseForumUrls:
 		print(eachSub)
 		if actuallyScrapeSubforums == True:
 			r = requests.get(eachSub, allow_redirects=False)
-			filenameForHtml = str(filenameIncrement) + ".html"
+			filenameForHtml = str(filenameIncrement) + ".php"
 			indexu = open(filenameForHtml, 'wb')
 			indexu.write(r.content)
 			indexu.close()
 	
-	listOfHtmls = sorted(timber.glob('*.html'))
+	listOfHtmls = sorted(timber.glob('*.php'))
 	if verbose:
 		print("Found {} htmls."
 			.format(len(listOfHtmls)))
-	
+	progress = 0
+
 	# This is the thing that will execute across every file! Meow!
 	for incrementor in listOfHtmls:
-		print(incrementor)
+		progress = progress + 1
 		htmlFile = open(incrementor, 'rb')
 	#	print("Opened html file")
 		fileString = htmlFile.read().decode('cp1252')
@@ -187,16 +211,66 @@ for eachUrl in baseForumUrls:
 		soup = BeautifulSoup(fileString, 'html.parser')
 	#	print(soup.get_text())
 	#	print(soup.find_all(''))
-		print('//////////////////////////////////////////////////////////////////////////////////////////////////	//////////////////////////////////////////////////////////////////////////////////////////////////////')
-		print(soup.title.string)
-		print('//////////////////////////////////////////////////////////////////////////////////////////////////	//////////////////////////////////////////////////////////////////////////////////////////////////////')
+		parentId = "0"
+		# The ID of the forum's parent. We will set this, eventually, to the right thing.
+		# Unless it's a top-level forum, in which case we want it to be set to zero.
+		for eachDIV in soup.find_all('div'):
+			try:
+				# We're going to try to parse out the parent forum of each subforum, if it has any.
+				# This means going in the div class "breadcrumbs" at the top of the page.
+				# It will list the main forum, then the main category, etc down to the smallest parent.
+				# i.e. Forums > Discussion > Ask/Tell > Business, Finance and Careers
+				# We don't want to list every parent forum, just the last one (i.e. BFC only has parent Ask/Tell).
+				# After parsing out the parent, there will still be more divs, but we'll break the loop because we're done.
+				if eachDIV.attrs['class'][0] == 'breadcrumbs':
+					#print(eachDIV)
+					for eachA in eachDIV.find_all('a'):
+						# print(eachA)
+						#print(str(eachA).find("forumdisplay.php"))
+						if (str(eachA).find("forumdisplay.php") != -1):
+							#print("Gottem")
+							lastParentId = parentId
+							parentId = str(eachA.attrs['href']).strip("<a href=\"forumdisplay.php?forumid=")
+							# print(parentId)
+						if parentId == str(soup.body.attrs['data-forum']):
+							break
+			except:
+				pass
+		if actuallyParseIndexTreeToDb == True:
+			# cur.execute(INSERT INTO forums)
+			...
+		print(str(incrementor) + " : " + str(progress) + "/" + str(len(listOfHtmls)) + " id:" + str(soup.body.attrs['data-forum']) + " par:" + lastParentId + " / " + str(soup.title.string))
+		##print('////////////////////////////////////////////////////////////////////////////////')
 		for eachTR in soup.find_all('tr'):
 	#		print('---------')
 			try:
+				threadInfo = {
+				"threadid":-1,
+				"title":"null",
+				"lastpost":datetime.strptime("00:00 Jan 01, 1970", "%H:%M %b %d, %Y"),
+				"lastposterid":-1,
+				"authorid":-1,
+				"lastpostername":"null",
+				"authorname":"null",
+				"sticky":False,
+				"announcement":False,
+				"read":False,
+				"posticon":"null",
+				"replycount":-1,
+				"viewcount":-1,
+				"rating":"null",
+				"firstpost":datetime.strptime("00:00 Jan 01, 1970", "%H:%M %b %d, %Y"),
+				"firstpostid":-1,
+				}
+
+
 				if eachTR.attrs['class'][0] == 'thread':
 	#				print('eachTR', " /// ", eachTR.attrs)
 	#				print("WOWIE WOWIE WOWIE WOWIE!!!!")
 					uselessVariable = 1;
+	#				insertIntoThreads(threadid, title, lastpost, lastposterid, authorid, lastpostername, authorname, sticky, announcement, read, posticon, replycount, viewcount, rating)
+	#				threadid integer PRIMARY KEY, title varchar, lastpost date, lastposterid integer, authorid integer, lastpostername varchar, authorname varchar, sticky boolean, announcement boolean, read boolean, posticon varchar, replycount integer, viewcount integer, rating varchar, firstpost date, firstpostid integer);")
+					
 					#print("///////")
 					for eachTD in eachTR.find_all('td'):
 	#					print(eachTD)
@@ -216,10 +290,16 @@ for eachUrl in baseForumUrls:
 										#print("---Thread : " + str(eachA.contents[0]))
 							if eachTD.attrs['class'][0] == 'author':
 								uselessVariable = 1
-								#print("---OP     : " + str(eachTD.contents[0]))
+								op = eachTD.contents[0]
+								print("---OP     : " + str(op.contents[0]))
+								# This is the OP's username (might be different from their current username)
+								cutoff = (int(str(op.attrs['href']).find("userid=")) + 7)
+								# Point in the string where the userID is. It should be 33, but it might not be sometimes.
+								print(str(op.attrs['href'])[cutoff:])
+
 							if eachTD.attrs['class'][0] == 'views':
 								uselessVariable = 1
-								#print("---Views  : " + str(eachTD.contents[0]))
+								print("---Views  : " + str(eachTD.contents[0]))
 							if eachTD.attrs['class'][0] == 'replies':
 								uselessVariable = 1
 	#							For some reason the same trick with the last-post-by doesn't work on this
@@ -229,6 +309,31 @@ for eachUrl in baseForumUrls:
 	# doesnt work				print("---Replies: " + str(eachTD.contents[0].a))
 							if eachTD.attrs['class'][0] == 'lastpost':
 								stamp = str(eachTD.contents[0].contents[0])
+								if(stamp.find("PM") != -1):
+									print("PISS PISS PISS PISS PISS PISS PISS")
+									print("PISS PISS PISS PISS PISS PISS PISS")
+									print("PISS PISS PISS PISS PISS PISS PISS")
+									print("PISS PISS PISS PISS PISS PISS PISS")
+									print("PISS PISS PISS PISS PISS PISS PISS")
+									print("PISS PISS PISS PISS PISS PISS PISS")
+									print("PISS PISS PISS PISS PISS PISS PISS")
+									stamp = str((int(stamp[:2]) + 12)) + stamp[2:5] + stamp[8:]
+								if(stamp.find("AM") != -1):
+									print("SHIT SHIT SHIT SHIT SHIT SHIT SHIT")
+									print("SHIT SHIT SHIT SHIT SHIT SHIT SHIT")
+									print("SHIT SHIT SHIT SHIT SHIT SHIT SHIT")
+									print("SHIT SHIT SHIT SHIT SHIT SHIT SHIT")
+									print("SHIT SHIT SHIT SHIT SHIT SHIT SHIT")
+									print("SHIT SHIT SHIT SHIT SHIT SHIT SHIT")
+									print("SHIT SHIT SHIT SHIT SHIT SHIT SHIT")
+									print("SHIT SHIT SHIT SHIT SHIT SHIT SHIT")
+									print("SHIT SHIT SHIT SHIT SHIT SHIT SHIT")
+									print("SHIT SHIT SHIT SHIT SHIT SHIT SHIT")
+								#print(stamp)
+	#							Sometimes a date be like:
+	#							10:00 PM Aug 7, 2020
+	#							0123456789
+
 	#							The full HTML link to the lastpost is at str(eachTD.contents[1])
 								#print("---Last by: " + str(eachTD.contents[1].contents[0]))
 	#							Dates are formatted like:
@@ -239,12 +344,14 @@ for eachUrl in baseForumUrls:
 									stamp = stamp[:10] + "0" + stamp[10:]
 								print("---Last at: " + stamp)
 								datestamp = datetime.strptime(stamp, "%H:%M %b %d, %Y")
-								print(datestamp)
-								print(datestamp.strftime("%a, %d %b %Y %T %z"))
+								#print(datestamp)
+								#print(datestamp.strftime("%a, %d %b %Y %T %z"))
 						except (IndexError, KeyError,AttributeError):
+							print("OH NOES!!!!!!!")
 							pass
 			except KeyError:
-	#			print(":/")
+				# print(eachTR)
+				print(KeyError)
 				pass
 	#		print(type(eachA))	
 	# <tr class="thread announcethread announce">
@@ -257,3 +364,7 @@ for eachUrl in baseForumUrls:
 	htmlFile.close()
 # End of the loop that iterates over all top-level forums.
 print("All done")
+
+cur.close()
+conn.close()
+# Close database cursor and database connection.
