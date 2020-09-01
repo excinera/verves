@@ -26,7 +26,7 @@ indicesname = "indices"
 configname = "cfg"
 configfilename = "sites.txt"
 templatehead = "template-head.html"
-templatefoot = "template-bottom.html"
+templatefoot = "template-footer.html"
 verbose = True
 actuallyScrapeIndex = False
 actuallyParseIndexTreeToDb = True
@@ -51,8 +51,10 @@ indices = Path(os.getcwd() + "/" + dataname + "/" + indicesname)
 # Top-level forum indexes (i.e. the main page of the website).
 config = Path(os.getcwd() + "/" + configname)
 configFilePath = Path(os.getcwd() + "/" + configname + "/" + configfilename)
-headPath = Path(os.getcwd() + "/" + dataname + "/" + templatehead)
-footPath = Path(os.getcwd() + "/" + dataname + "/" + templatefoot)
+headPath = Path(os.getcwd() + "/" + configname + "/" + templatehead)
+headTemplatePath = Path(os.getcwd() + "/" + configname + "/" + "template-head-sample.html")
+footPath = Path(os.getcwd() + "/" + configname + "/" + templatefoot)
+footTemplatePath = Path(os.getcwd() + "/" + configname + "/" + "template-footer-sample.html")
 
 if verbose:
 	print("File name: " + __file__)
@@ -61,8 +63,14 @@ if verbose:
 	print("Config file path: " + str(configFilePath))
 	print("Running as user: " + os.getlogin())
 
-headerFile = open(headPath, 'rb')
-header = headerFile.read().decode()
+try:
+	headerFile = open(headPath, 'rb')
+	header = headerFile.read().decode()
+except:
+	headerFile = open()
+	pass
+
+
 footerFile = open(footPath, 'rb')
 footer = footerFile.read().decode()
 # Open header and footer templates.
@@ -96,9 +104,23 @@ for f in cur:
 
 #print(forumsArray)
 
+#fetchString = cur.execute("SELECT * FROM threads ORDER BY lastpost DESC")
+#fetchString = cur.execute("SELECT * FROM threads ORDER BY replycount DESC LIMIT 1000")
+#fetchString = cur.execute("SELECT * FROM threads ORDER BY replycount DESC LIMIT 10000")
+#fetchString = cur.execute("SELECT * FROM threads ORDER BY viewcount DESC LIMIT 1000")
+#fetchString = cur.execute("SELECT * FROM threads WHERE replycount > 20000 ORDER BY lastpost DESC LIMIT 1000")
+#fetchString = cur.execute("SELECT * FROM threads WHERE replycount > 20 ORDER BY viewcount/replycount DESC LIMIT 1000")
+#fetchString = cur.execute("SELECT * FROM threads ORDER BY threadid ASC LIMIT 1000")
+#fetchString = cur.execute("SELECT * FROM threads WHERE authorid = ")
 
-fetchString = cur.execute("SELECT * FROM recentthreads ORDER BY lastpost DESC LIMIT 500")
+#fetchString = cur.execute("SELECT forumid, COUNT(*) FROM threads GROUP BY forumid ORDER BY COUNT(*) DESC")
+
+fetchString = cur.execute("SELECT * FROM threads ORDER BY lastpost DESC LIMIT 1000")
+
+progress = 0
 for r in cur:
+	progress = progress +1
+	print("Progress: " + str(progress))
 # The order of the rs looks like:
 # (3937588, 'Stanley Cup Playoffs Round 2 GDT: No Milbury Club', datetime.datetime(2020, 8, 30, 23, 37), -1, 124795, 'Escape Goat', 'marioinblack', False, False, False, 'https://fi.somethingawful.com/forums/posticons/sports-nhl.gif#147', 'Hockey', -1, 11772, 'null', True, False, 122, None, None)
 # The schema is:
@@ -136,7 +158,10 @@ for r in cur:
 	if r[8] == True:
 		mid = mid + "<td class=\"star\"></td>\n"
 		# Announcements threads have this even though it doesn't do anything.
-	mid = mid + "<td class=\"fromsubforum\"><a href=\"" + base + "/forumdisplay.php?forumid=" + str(int(r[17])) + "\"><img src=\"" + forumsArray[int(r[17])][6] + "\" title=\"" + forumsArray[int(r[17])][1] + "\"></a></td>\n"
+	try:
+		mid = mid + "<td class=\"fromsubforum\"><a href=\"" + base + "/forumdisplay.php?forumid=" + str(int(r[17])) + "\"><img src=\"" + forumsArray[int(r[17])][6] + "\" title=\"" + forumsArray[int(r[17])][1] + "\"></a></td>\n"
+	except:
+		mid = mid + "<td class=\"fromsubforum\"><a href=\"" + base + "/forumdisplay.php?forumid=" + str(r[17]) + "\">" + str(r[17]) + "</a></td>\n"
 	# Add subforum TD
 	posticonlocation = int(str(r[10]).find("#")) + 1
 	# Find where the octothorpe is in the posticon url -- this is the icon's number for that subforum.
