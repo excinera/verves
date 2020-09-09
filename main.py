@@ -2,6 +2,7 @@
 # this will do something someday
 
 import sys
+import traceback
 import os
 import time
 # This is used to sleep.
@@ -57,6 +58,7 @@ config = Path(os.getcwd() + "/" + configname)
 configFilePath = Path(os.getcwd() + "/" + configname + "/" + configfilename)
 
 curTime = datetime.now()
+startTime = curTime
 lastTime = curTime
 delta = (curTime - lastTime).total_seconds()
 
@@ -85,8 +87,8 @@ cur.execute("CREATE TABLE IF NOT EXISTS forums (forumid integer PRIMARY KEY, tit
 #cur.execute("CREATE TABLE IF NOT EXISTS recentthreads (threadid integer PRIMARY KEY, title varchar, lastpost timestamp, lastposterid integer, authorid integer, lastpostername varchar, authorname varchar, sticky boolean, announcement boolean, read boolean, posticon varchar, posticonalt varchar, replycount integer, viewcount integer, rating varchar, open boolean, archived boolean, forumid integer, firstpost date, firstpostid integer);")
 # This one is for the HUGE table. Not for amateurs.
 # uncomment this to die instantly
-### cur.execute("DROP TABLE threads")
-cur.execute("CREATE TABLE IF NOT EXISTS threads (threadid integer PRIMARY KEY, title varchar, lastpost timestamp, lastposterid integer, authorid integer, lastpostername varchar, authorname varchar, sticky boolean, announcement boolean, read boolean, posticon varchar, posticonalt varchar, replycount integer, viewcount integer, rating varchar, open boolean, archived boolean, forumid integer, firstpost date, firstpostid integer);")
+cur.execute("DROP TABLE threads2")
+cur.execute("CREATE TABLE IF NOT EXISTS threads2 (threadid integer PRIMARY KEY, title varchar, lastpost timestamp, lastposterid integer, authorid integer, lastpostername varchar, authorname varchar, sticky boolean, announcement boolean, read boolean, posticon varchar, posticonalt varchar, replycount integer, viewcount integer, rating varchar, open boolean, archived boolean, forumid integer, firstpost date, firstpostid integer);")
 conn.commit() 
 # Make database change persistent.
 
@@ -328,7 +330,7 @@ for eachUrl in baseForumUrls:
 	# This is the thing that will execute across every file! Meow!
 	listOfParents = {}
 	#Making a dict of tuples for forums and their parent ID to avoid
-	#having to iterate over these DIVs 3000 times.
+	#having to iterate over these DIVs a bunch of times.
 	for incrementor in listOfHtmls:
 		progress = progress + 1
 		if (str(incrementor) == str(skipUntilString)):
@@ -338,8 +340,19 @@ for eachUrl in baseForumUrls:
 				htmlFile = open(incrementor, 'rb')
 			#	print("Opened html file")
 				fileString = htmlFile.read().decode('cp1252')
+				# We still need to decode it into a string, in case the lxml thing doesn't parse out the body title for some reason.
 			#	print("Decoded html file")
-				soup = BeautifulSoup(fileString, 'html.parser')
+				#soup = BeautifulSoup(fileString, 'html.parser')
+				# Slow version which sucks.
+				soup = BeautifulSoup(fileString, 'lxml')
+
+				#soup = BeautifulSoup(htmlFile, 'lxml')
+				# This makes BeautifulSoup just read the file, and not the string parsed from it.
+				# As far as I know, this is slightly better because BS will do its own decoding,
+				# which is supposed to work better for Unicode stuff. 
+				# We'll see if it works on the big dataset, lol.
+				# UPDATE: It sucked so I'm going to not do this.
+
 				htmlFile.close()
 			#	print(soup.get_text())
 			#	print(soup.find_all(''))
@@ -347,9 +360,26 @@ for eachUrl in baseForumUrls:
 				scrapedParentYet = False
 				# The ID of the forum's parent. We will set this, eventually, to the right thing.
 				# Unless it's a top-level forum, in which case we want it to be set to zero.
-				if str(soup.body.attrs['data-forum']) in listOfParents:
-					lastParentId: listOfParents[str(soup.body.attrs['data-forum'])]
-					# If there's already a parent ID stored, we don't need to parse 3000 divs lol.
+				print(incrementor)
+				# We don't know how many digits the forum ID is going to be, so we find the closing quotation mark
+				# and index off of that.
+
+				#print(str(soup.body))
+				#print(str(soup.body.attrs))
+				#print(str(soup.body.attrs['data-forum']))
+				try:
+					# Try to get the parent ID. Sometimes this will fail and go to the KeyError exception handler.
+					indexStr = str(soup.body.attrs['data-forum'])
+				except:	
+					# Sometimes this will give a KeyError because lxml messed up parsing the thing.
+					# In this case, we'll just scrape it directly from the html document, lol.
+					# This is stupid but it will work.
+					dataForumAt = fileString.find("data-forum=\"") + 12
+					dataForumEnd = fileString[dataForumAt:].find("\"")
+					indexStr = str(fileString[dataForumAt:(dataForumAt+dataForumEnd)])
+				if indexStr in listOfParents:
+					lastParentId = listOfParents[indexStr]
+					# If there's already a parent ID stored, we don't need to parse all dem divs lol.
 				else:
 					for eachDIV in soup.find_all('div'):
 						try:
@@ -363,6 +393,8 @@ for eachUrl in baseForumUrls:
 								break
 							#	This didn't really increase performance.
 							if eachDIV.attrs['class'][0] == 'breadcrumbs':
+								# This will try to scrape it out of the breadcrumbs
+								# if it can't get it from the list of forums that have parents already.
 								#print(eachDIV)
 								for eachA in eachDIV.find_all('a'):
 									# print(eachA)
@@ -373,15 +405,16 @@ for eachUrl in baseForumUrls:
 										parentId = str(eachA.attrs['href']).strip("<a href=\"forumdisplay.php?forumid=")
 										scrapedParentYet = True
 										# print(parentId)
-									if parentId == str(soup.body.attrs['data-forum']):
+									if parentId == indexStr:
 										break
 						except:
 							pass
+
 				if actuallyParseIndexTreeToDb == True:
 					# cur.execute(INSERT INTO forums)
 					...
-				listOfParents[str(soup.body.attrs['data-forum'])] = lastParentId
-				print(str(incrementor) + " : " + str(progress) + "/" + str(len(listOfHtmls)) + " id:" + str(soup.body.attrs['data-forum']) + " par:" + lastParentId + " / " + str(soup.title.string))
+				listOfParents[indexStr] = lastParentId
+				print(str(incrementor) + " : " + str(progress) + "/" + str(len(listOfHtmls)) + " id:" + indexStr + " par:" + lastParentId + " / " + str(soup.title.string))
 				##print('////////////////////////////////////////////////////////////////////////////////')
 				
 				threadProgress = 0
@@ -389,7 +422,7 @@ for eachUrl in baseForumUrls:
 			#		print('---------')
 					try:
 						threadInfo = {
-						"forumid":str(soup.body.attrs['data-forum']),
+						"forumid":indexStr,
 						"threadid":-1,
 						"title":"null",
 						"lastpost":datetime.strptime("00:00 Jan 01, 1970", "%H:%M %b %d, %Y"),
@@ -441,6 +474,9 @@ for eachUrl in baseForumUrls:
 			#					print(eachTD)
 			#					print("///")
 								try:
+									attrsClass = eachTD.attrs.get('class')
+									print(attrsClass)
+
 									if "icon" in eachTD.attrs['class']:
 										threadInfo["posticon"] = str(eachTD.contents[0].contents[0]['src'])
 										threadInfo["posticonalt"] = str(eachTD.contents[0].contents[0]['alt'])
@@ -518,6 +554,10 @@ for eachUrl in baseForumUrls:
 											threadInfo["viewcount"] = int(str(eachTD.contents[0]))
 										if veryverbose:
 											print("-----Views: " + str(threadInfo['viewcount']))
+
+									if "rating" in eachTD.attrs['class']:
+										bigList.append(eachTD.contents)
+
 									if  'lastpost' in eachTD.attrs['class']:
 										stamp = str(eachTD.contents[0].contents[0])
 			#							Dates are formatted like:
@@ -581,6 +621,7 @@ for eachUrl in baseForumUrls:
 						# print(eachTR)
 						if veryverbose:
 							print(KeyError)
+							traceback.print_exc(limit=100, file=None, chain=True)
 						pass
 			#		print(type(eachA))	
 			# <tr class="thread announcethread announce">
@@ -606,8 +647,10 @@ for eachUrl in baseForumUrls:
 			print("Skipping " + str(incrementor))		
 # End of the loop that iterates over all top-level forums.
 print("All done")
-# print(bigList)
+print(bigList)
+totaldelta = (curTime - startTime).total_seconds()
 failToLog("---------- Finished executing over " + str(progress) + " files at " + str(datetime.now()) + " :^)\n")
+failToLog("---------- Executed in " + str(totaldelta)  + " sec ( " + str(int(totaldelta) / int(progress)) + " per)")
 conn.commit()
 cur.close()
 conn.close()
