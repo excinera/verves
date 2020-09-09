@@ -27,12 +27,13 @@ configname = "cfg"
 configfilename = "sites.txt"
 templatehead = "template-head.html"
 templatefoot = "template-footer.html"
-verbose = True
+verbose = False
 actuallyScrapeIndex = False
 actuallyParseIndexTreeToDb = True
 actuallyScrapeSubforums = False
 actuallyParseThreadsToDb = False
 # These ought to be set in config files, or by flags.
+sleeptimer = 5
 
 
 # I was using sys.path[0] to get the current directory
@@ -81,6 +82,7 @@ cur = conn.cursor()
 name_Database   = "threads";
 
 mid = ""
+midList = []
 
 base = "https://forums.somethingawful.com"
 
@@ -104,21 +106,51 @@ for f in cur:
 
 #print(forumsArray)
 
-#fetchString = cur.execute("SELECT * FROM threads ORDER BY lastpost DESC")
-#fetchString = cur.execute("SELECT * FROM threads ORDER BY replycount DESC LIMIT 1000")
-#fetchString = cur.execute("SELECT * FROM threads ORDER BY replycount DESC LIMIT 10000")
-#fetchString = cur.execute("SELECT * FROM threads ORDER BY viewcount DESC LIMIT 1000")
-#fetchString = cur.execute("SELECT * FROM threads WHERE replycount > 20000 ORDER BY lastpost DESC LIMIT 1000")
-#fetchString = cur.execute("SELECT * FROM threads WHERE replycount > 20 ORDER BY viewcount/replycount DESC LIMIT 1000")
-#fetchString = cur.execute("SELECT * FROM threads ORDER BY threadid ASC LIMIT 1000")
-#fetchString = cur.execute("SELECT * FROM threads WHERE authorid = ")
+# fetchString = cur.execute("SELECT forumid, COUNT(*) FROM threads GROUP BY forumid ORDER BY COUNT(*) DESC")
+# fetchString = cur.execute("SELECT AVG(replycount) FROM threads GROUP BY forumid ORDER BY AVG(replycount) DESC")
+# fetchString = cur.execute("SELECT COUNT(*) FROM threads")
+	# 2,617,553
+# fetchString = cur.execute("SELECT MAX(replycount) FROM threads")
+	# 2147483647
+# fetchString = cur.execute("SELECT SUM(replycount) FROM threads")
+	# 2363509452 (- 2147483647 = 216,025,805)
 
-#fetchString = cur.execute("SELECT forumid, COUNT(*) FROM threads GROUP BY forumid ORDER BY COUNT(*) DESC")
 
-fetchString = cur.execute("SELECT * FROM threads ORDER BY lastpost DESC LIMIT 1000")
+# fun stats:
+# 85.529 avg replies per thread
+
+
+for r in cur:
+	print(r)
+
+time.sleep(sleeptimer)
+
+
+# fetchString = cur.execute("SELECT * FROM threads ORDER BY lastpost DESC")
+# fetchString = cur.execute("SELECT * FROM threads ORDER BY replycount DESC LIMIT 1000")
+# fetchString = cur.execute("SELECT * FROM threads ORDER BY replycount DESC LIMIT 10000")
+# fetchString = cur.execute("SELECT * FROM threads ORDER BY viewcount DESC LIMIT 1000")
+# fetchString = cur.execute("SELECT * FROM threads WHERE replycount > 20000 ORDER BY lastpost DESC LIMIT 1000")
+# fetchString = cur.execute("SELECT * FROM threads WHERE replycount > 20 ORDER BY viewcount/replycount DESC LIMIT 1000")
+# fetchString = cur.execute("SELECT * FROM threads WHERE replycount > 20 AND viewcount/replycount > 300 ORDER BY forumid, replycount DESC LIMIT 1000")
+# fetchString = cur.execute("SELECT * FROM threads ORDER BY threadid ASC LIMIT 1000")
+# fetchString = cur.execute("SELECT * FROM threads WHERE authorid = ")
+# fetchString = cur.execute("SELECT * FROM threads ORDER BY lastpost DESC LIMIT 1000")
+# fetchString = cur.execute("SELECT * FROM threads WHERE replycount = 0 ORDER BY threadid ASC LIMIT 5000")
+
+fetchString = cur.execute("SELECT * FROM threads ORDER BY lastpost ASC")
+
+lastTime = datetime.now()
 
 progress = 0
+# Stupid crap to check something.
+# backwardsList = []
+lastId = 1
+
 for r in cur:
+#	break
+#	print(r)
+#	Uncomment this if you just want to run a query that prints a COUNT or wevs
 	progress = progress +1
 	print("Progress: " + str(progress))
 # The order of the rs looks like:
@@ -145,6 +177,15 @@ for r in cur:
 #	17	forumid integer,
 #	18	firstpost date,
 #	19	firstpostid integer);")
+
+	# This is to investigate something. Has no bearing on anything.
+	#if (int(r[0]) - lastId) < 0:
+	#	backwardsList.append(r[0])
+
+	# print(str(int(r[0]) - lastId))
+	# lastId = int(r[0])
+
+	mid = ""
 
 	threadclass = "thread"
 	if r[8] == True:
@@ -179,7 +220,7 @@ for r in cur:
 	# Finish thread title TD.
 	mid = mid + "<td class=\"author\"><a href=\"" + base + "/member.php?action=getinfo&amp;userid=" + str(r[4]) + "\">" + str(r[6]) + "</a></td>\n"
 	# Add author TD.
-	mid = mid + "<td class=\"replies\"><a href=\"" + base + "/misc.php?action=whoposted&threadid=3937844\">" + str(r[12]) + "</a></td>\n"
+	mid = mid + "<td class=\"replies\"><a href=\"" + base + "/misc.php?action=whoposted&threadid=" + str(r[0]) + "\">" + str(r[12]) + "</a></td>\n"
 	# Add reply count TD.
 	mid = mid + "<td class=\"views\">" + str(r[13]) + "</td>\n"
 	# Add view count TD.
@@ -187,14 +228,37 @@ for r in cur:
 	mid = mid + "<td class=\"lastpost\"><div class=\"date\">" + str(r[2]) + "</div><a class=\"author\" href=\"" + base + "/member.php?action=getinfo&username=" + str(r[5]) + "\">" + str(r[5]) + "</a></td>\n"
 	# Add last poster name TD.
 	mid = mid + "</tr>"
-	print(r)
+	if verbose:
+		print(r)
+	midList.append(mid)
 
-htmlFull = str(header) + str(mid) + str(footer)
+
+midFull = ''.join(midList)
+print("All threads parsed. Writing file.")
+
+htmlFull = str(header) + str(midFull) + str(footer)
 
 
 outputFile = open('index.html', 'w')
 outputFile.write(htmlFull)
 outputFile.close()
+
+
+curTime = datetime.now()
+delta = (curTime - lastTime).total_seconds()
+
+# print(backwardsList)
+
+print("Executed in: " + str(delta) + " ( " + str(int(delta) / int(progress)) + " per)")
+# Tried this on the following query:
+# "SELECT * FROM threads WHERE replycount = 0 ORDER BY lastpost ASC LIMIT 5000"
+# For naive concatenation it was 64.54 sec (0.0128 per, average).
+# After making it add the strings to an array, and then joining that array at the end:
+# Total execution time was 63.9 seconds...
+# for 2.6 MILLION threads lmfao.
+# A huge amount of that time was just writing the file.
+# PS. the file is 3.0 GB
+
 
 
 conn.commit()

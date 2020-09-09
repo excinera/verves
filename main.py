@@ -33,7 +33,7 @@ actuallyScrapeIndex = False
 actuallyParseIndexTreeToDb = False
 actuallyScrapeSubforums = False
 actuallyParseThreadsToDb = True
-skipCount = 39599
+skipCount = 0
 skipUntilString = "xxxxx"
 commitEvery = 100
 # These ought to be set in config files, or by flags.
