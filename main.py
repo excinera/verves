@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # 2020 08 20 -- ex cinera
 # this will do something someday
 
